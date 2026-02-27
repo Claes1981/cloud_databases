@@ -9,7 +9,7 @@ set -euo pipefail
 # Configuration — change these for your environment
 RESOURCE_GROUP="CloudDatabasesRG"
 LOCATION="northeurope"
-ACCOUNT_NAME="cosmosdb-yourname-bcd"
+ACCOUNT_NAME="cosmosdb-claes-bcd"
 DATABASE_NAME="bookmarks_db"
 COLLECTION_NAME="bookmarks"
 
