@@ -1,0 +1,49 @@
+# Git ignore file for cloud_databases repository
+# This file specifies intentionally untracked files that should be ignored by git.
+
+# Ignore build artifacts and temporary files
+*.log
+*.tmp
+*.swp
+*.bak
+
+# Ignore environment files with secrets
+.env
+.env.local
+*.secret
+*.credentials
+
+# Ignore IDE specific files
+.idea/
+.vscode/
+*.sublime-workspace
+*.sublime-project
+
+# Ignore OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Ignore Azure CLI cache and logs
+~/.azure/
+*.azcli.json
+
+# Ignore Bicep compilation outputs
+*.json  # Except for bicep config files
+!bicepconfig.json
+
+# Ignore shell script execution logs
+shell.log
+
+# Ignore test output directories
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore node modules if any
+node_modules/
