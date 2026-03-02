@@ -2,33 +2,41 @@
 # Guidelines for Agentic Coding in cloud_databases Repository
 
 ## Overview
-This repository contains infrastructure-as-code scripts for provisioning Azure CosmosDB resources. Currently, it includes:
-- Bash scripts for Azure CLI-based provisioning
+This repository contains infrastructure-as-code scripts for provisioning Azure CosmosDB resources with MongoDB API.
 
-## Build/Lint/Test Commands
-
-### Shell Scripts
+## Quick Start
 ```bash
-# Make shell scripts executable
-chmod +x provision-cosmosdb.sh
+# Validate script syntax
+bash -n provision-cosmosdb.sh
 
-# Run shellcheck for linting (if available)
+# Lint with shellcheck
 shellcheck provision-cosmosdb.sh
 
-# Execute the provisioning script
+# Run provisioning
 ./provision-cosmosdb.sh
 ```
 
-### Running Tests
-Since this is primarily an IaC repository with bash scripts, tests are typically integration tests that verify the provisioned resources.
+## Build/Lint/Test Commands
 
+### Linting
 ```bash
-# Test the script syntax
+# Lint all shell scripts
+shellcheck *.sh
+
+# Lint with specific checks disabled
+shellcheck -e SC1091 provision-cosmosdb.sh
+```
+
+### Testing
+```bash
+# Syntax validation (required before commit)
 bash -n provision-cosmosdb.sh
 
-# Dry-run approach (comment out destructive operations or use --dryrun flags where supported)
-# Note: Azure CLI doesn't have universal dry-run support, so manual review is recommended
+# Full validation pipeline
+bash -n provision-cosmosdb.sh && shellcheck provision-cosmosdb.sh
 ```
+
+Note: This is an IaC repository. Integration tests provision real Azure resources.
 
 ## Code Style Guidelines
 
