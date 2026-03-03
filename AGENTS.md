@@ -86,6 +86,13 @@ fi
 4. **Dependencies**: Document all prerequisites (Azure CLI version, subscriptions, etc.)
 5. **Logging**: Use echo statements for progress tracking during execution
 
+### What to Avoid
+- Never use `cd <directory> && <command>` - use `--workdir` or `--cwd` flags
+- Don't use unquoted variables: `$VAR` should be `"$VAR"`
+- Avoid `set +e` or disabling error handling
+- Don't hardcode secrets or credentials
+- Never use interactive commands that require user input
+
 ## Repository Structure
 ```
 cloud_databases/
@@ -99,65 +106,25 @@ cloud_databases/
 3. Bash shell environment
 
 ## Common Commands
-
-### Azure CLI Setup
 ```bash
-# Login to Azure
+# Azure CLI setup
 az login
-
-# Set active subscription
 az account set --subscription "Your-Subscription-ID"
 
-# Verify installation
-az --version
-```
-
-### Script Execution
-```bash
-# Run the provisioning script
+# Run provisioning script
 ./provision-cosmosdb.sh
-
-# Customize parameters by setting environment variables before running
 RESOURCE_GROUP="MyCustomRG" ./provision-cosmosdb.sh
-```
 
-### Resource Management
-```bash
-# List created resources
-az group show --name CloudDatabasesRG
-
-# Delete resources (cleanup)
+# Resource cleanup
 az group delete --name CloudDatabasesRG --yes --no-wait
 ```
 
-## Testing Strategy
-Since this provisions real cloud resources:
-1. Test in a dedicated test subscription/resource group
-2. Start with minimal configurations
-3. Verify each step independently where possible
-4. Implement cleanup procedures
-5. Consider using Azure CLI's `--dryrun` flag where available
-
-## Security Guidelines
-1. Never commit secrets or credentials
-2. Use Azure Managed Identity where possible
-3. Follow principle of least privilege for service principals
-4. Clean up test resources promptly
-5. Review Azure policy compliance requirements
-
-## Contribution Workflow
-1. Fork the repository
-2. Create feature branches from main
-3. Make minimal, focused changes
-4. Test thoroughly before submitting PRs
-5. Update documentation as needed
-6. Follow semantic commit messages
-
-## Example Commit Messages
-- `feat: add CosmosDB serverless tier support`
-- `fix: handle resource group creation conflicts`
-- `docs: update provisioning script header comments`
-- `refactor: extract database creation to separate function`
+## Testing & Security
+- Test in dedicated test subscription/resource group
+- Never commit secrets or credentials
+- Use Azure Managed Identity where possible
+- Follow principle of least privilege for service principals
+- Clean up test resources promptly
 
 ## Troubleshooting
 Common issues and solutions:
@@ -167,3 +134,12 @@ Common issues and solutions:
 4. **Script fails mid-execution**: Check previous steps for errors
 
 For detailed error information, run commands with `--debug` flag.
+
+## For Agents: Creating New Scripts
+When adding new provisioning scripts:
+1. Follow existing patterns in `provision-cosmosdb.sh`
+2. Use `set -euo pipefail` at line 2
+3. Quote all variables: `"$VAR"` not `$VAR`
+4. Add progress messages with `echo`
+5. Run `shellcheck` before committing
+6. Ensure idempotency where possible
