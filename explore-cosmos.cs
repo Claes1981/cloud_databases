@@ -4,135 +4,171 @@ using MongoDB.Driver;
 using MongoDB.Bson;
 using MongoDB.Bson.Serialization.Attributes;
 
-// Read the connection string from environment variable
-var connectionString = Environment.GetEnvironmentVariable("COSMOS_CONNECTION_STRING")
-    ?? throw new InvalidOperationException(
-        "COSMOS_CONNECTION_STRING environment variable is not set. " +
-        "Set it with: export COSMOS_CONNECTION_STRING=\"your-connection-string\"");
+// ============================================
+// Configuration Module
+// ============================================
+var config = new CosmosConfig(
+    connectionString: Environment.GetEnvironmentVariable("COSMOS_CONNECTION_STRING")
+        ?? throw new InvalidOperationException(
+            "COSMOS_CONNECTION_STRING environment variable is not set."),
+    databaseName: Environment.GetEnvironmentVariable("COSMOS_DATABASE_NAME") ?? "bookmarks_db",
+    collectionName: Environment.GetEnvironmentVariable("COSMOS_COLLECTION_NAME") ?? "bookmarks"
+);
 
-// Connect to Cosmos DB
-var client = new MongoClient(connectionString);
-var database = client.GetDatabase("bookmarks_db");
-var collection = database.GetCollection<Bookmark>("bookmarks");
+// ============================================
+// Repository Module
+// ============================================
+var client = new MongoClient(config.ConnectionString);
+var database = client.GetDatabase(config.DatabaseName);
+var collection = database.GetCollection<Bookmark>(config.CollectionName);
 
+var bookmarkRepository = new BookmarkRepository(collection);
+
+// ============================================
+// Application Logic
+// ============================================
 Console.WriteLine("Connected to Cosmos DB successfully!");
-Console.WriteLine($"Database: bookmarks_db");
-Console.WriteLine($"Collection: bookmarks");
+Console.WriteLine($"Database: {config.DatabaseName}");
+Console.WriteLine($"Collection: {config.CollectionName}");
 Console.WriteLine();
 
-// === CREATE: Insert bookmarks ===
-Console.WriteLine("--- Inserting Bookmarks ---");
+await RunDemo(bookmarkRepository);
 
-var bookmarks = new List<Bookmark>
+async Task RunDemo(IBookmarkRepository repository)
 {
-    new()
+    await CreateBookmarks(repository);
+    await ReadBookmarks(repository);
+    await UpdateBookmark(repository);
+    await DeleteBookmark(repository);
+    await ShowFinalCount(repository);
+    await Cleanup(repository);
+}
+
+async Task CreateBookmarks(IBookmarkRepository repository)
+{
+    Console.WriteLine("--- Inserting Bookmarks ---");
+
+    var bookmarks = new List<Bookmark>
     {
-        Title = "Microsoft Learn",
-        Url = "https://learn.microsoft.com",
-        Category = "learning",
-        Tags = ["microsoft", "documentation", "tutorials"]
-    },
-    new()
+        new()
+        {
+            Title = "Microsoft Learn",
+            Url = "https://learn.microsoft.com",
+            Category = "learning",
+            Tags = ["microsoft", "documentation", "tutorials"]
+        },
+        new()
+        {
+            Title = "GitHub",
+            Url = "https://github.com",
+            Category = "development",
+            Tags = ["git", "code", "collaboration"]
+        },
+        new()
+        {
+            Title = "Azure Portal",
+            Url = "https://portal.azure.com",
+            Category = "cloud",
+            Tags = ["azure", "management", "portal"]
+        },
+        new()
+        {
+            Title = "Stack Overflow",
+            Url = "https://stackoverflow.com",
+            Category = "development",
+            Tags = ["questions", "community", "programming"]
+        }
+    };
+
+    await repository.InsertManyAsync(bookmarks);
+    Console.WriteLine($"Inserted {bookmarks.Count} bookmarks.");
+    Console.WriteLine();
+}
+
+async Task ReadBookmarks(IBookmarkRepository repository)
+{
+    Console.WriteLine("--- All Bookmarks ---");
+
+    var allBookmarks = await repository.GetAllAsync();
+    foreach (var bookmark in allBookmarks)
     {
-        Title = "GitHub",
-        Url = "https://github.com",
-        Category = "development",
-        Tags = ["git", "code", "collaboration"]
-    },
-    new()
-    {
-        Title = "Azure Portal",
-        Url = "https://portal.azure.com",
-        Category = "cloud",
-        Tags = ["azure", "management", "portal"]
-    },
-    new()
-    {
-        Title = "Stack Overflow",
-        Url = "https://stackoverflow.com",
-        Category = "development",
-        Tags = ["questions", "community", "programming"]
+        Console.WriteLine($"  [{bookmark.Category}] {bookmark.Title} - {bookmark.Url}");
     }
-};
+    Console.WriteLine($"Total: {allBookmarks.Count} bookmarks");
+    Console.WriteLine();
 
-await collection.InsertManyAsync(bookmarks);
-Console.WriteLine($"Inserted {bookmarks.Count} bookmarks.");
-Console.WriteLine();
+    Console.WriteLine("--- Development Bookmarks ---");
 
-// === READ: Query bookmarks ===
-Console.WriteLine("--- All Bookmarks ---");
+    var devBookmarks = await repository.GetByCategoryAsync("development");
+    foreach (var bookmark in devBookmarks)
+    {
+        Console.WriteLine($"  {bookmark.Title} ({string.Join(", ", bookmark.Tags)})");
+    }
+    Console.WriteLine($"Found: {devBookmarks.Count} development bookmarks");
+    Console.WriteLine();
 
-var allBookmarks = await collection.Find(_ => true).ToListAsync();
-foreach (var b in allBookmarks)
-{
-    Console.WriteLine($"  [{b.Category}] {b.Title} - {b.Url}");
+    Console.WriteLine("--- Bookmarks tagged 'azure' ---");
+
+    var azureBookmarks = await repository.GetByTagAsync("azure");
+    foreach (var bookmark in azureBookmarks)
+    {
+        Console.WriteLine($"  {bookmark.Title} - {bookmark.Url}");
+    }
+    Console.WriteLine();
 }
-Console.WriteLine($"Total: {allBookmarks.Count} bookmarks");
-Console.WriteLine();
 
-// Filter by category
-Console.WriteLine("--- Development Bookmarks ---");
-
-var devFilter = Builders<Bookmark>.Filter.Eq(b => b.Category, "development");
-var devBookmarks = await collection.Find(devFilter).ToListAsync();
-foreach (var b in devBookmarks)
+async Task UpdateBookmark(IBookmarkRepository repository)
 {
-    Console.WriteLine($"  {b.Title} ({string.Join(", ", b.Tags)})");
+    Console.WriteLine("--- Updating a Bookmark ---");
+
+    var githubBookmark = await repository.GetByTitleAsync("GitHub");
+    if (githubBookmark != null)
+    {
+        await repository.UpdateAsync(new Bookmark
+        {
+            Id = githubBookmark.Id,
+            Title = "GitHub - Where the world builds software",
+            Url = githubBookmark.Url,
+            Category = githubBookmark.Category,
+            Tags = ["git", "code", "collaboration", "open-source"],
+            CreatedAt = githubBookmark.CreatedAt
+        });
+
+        var updated = await repository.GetByTitleAsync("GitHub - Where the world builds software");
+        Console.WriteLine($"Updated title: {updated?.Title}");
+        Console.WriteLine($"Updated tags: {string.Join(", ", updated?.Tags ?? [])}");
+    }
+    Console.WriteLine();
 }
-Console.WriteLine($"Found: {devBookmarks.Count} development bookmarks");
-Console.WriteLine();
 
-// Filter by tag
-Console.WriteLine("--- Bookmarks tagged 'azure' ---");
-
-var tagFilter = Builders<Bookmark>.Filter.AnyEq(b => b.Tags, "azure");
-var azureBookmarks = await collection.Find(tagFilter).ToListAsync();
-foreach (var b in azureBookmarks)
+async Task DeleteBookmark(IBookmarkRepository repository)
 {
-    Console.WriteLine($"  {b.Title} - {b.Url}");
+    Console.WriteLine("--- Deleting a Bookmark ---");
+
+    var stackOverflow = await repository.GetByTitleAsync("Stack Overflow");
+    if (stackOverflow != null)
+    {
+        await repository.DeleteByIdAsync(stackOverflow.Id);
+        Console.WriteLine("Deleted Stack Overflow bookmark.");
+    }
+    Console.WriteLine();
 }
-Console.WriteLine();
 
-// === UPDATE: Modify a bookmark ===
-Console.WriteLine("--- Updating a Bookmark ---");
-
-var updateFilter = Builders<Bookmark>.Filter.Eq(b => b.Title, "GitHub");
-var update = Builders<Bookmark>.Update
-    .Set(b => b.Title, "GitHub - Where the world builds software")
-    .Set(b => b.Tags, new[] { "git", "code", "collaboration", "open-source" });
-
-var updateResult = await collection.UpdateOneAsync(updateFilter, update);
-Console.WriteLine($"Matched: {updateResult.MatchedCount}, Modified: {updateResult.ModifiedCount}");
-
-// Verify the update
-var updatedBookmark = await collection.Find(updateFilter).FirstOrDefaultAsync();
-if (updatedBookmark == null)
+async Task ShowFinalCount(IBookmarkRepository repository)
 {
-    // The title changed, so search by URL instead
-    var urlFilter = Builders<Bookmark>.Filter.Eq(b => b.Url, "https://github.com");
-    updatedBookmark = await collection.Find(urlFilter).FirstOrDefaultAsync();
+    var count = await repository.CountAsync();
+    Console.WriteLine($"--- Final bookmark count: {count} ---");
 }
-Console.WriteLine($"Updated title: {updatedBookmark?.Title}");
-Console.WriteLine($"Updated tags: {string.Join(", ", updatedBookmark?.Tags ?? [])}");
-Console.WriteLine();
 
-// === DELETE: Remove a bookmark ===
-Console.WriteLine("--- Deleting a Bookmark ---");
+async Task Cleanup(IBookmarkRepository repository)
+{
+    await repository.DeleteAllAsync();
+    Console.WriteLine("All bookmarks deleted.");
+}
 
-var deleteFilter = Builders<Bookmark>.Filter.Eq(b => b.Title, "Stack Overflow");
-var deleteResult = await collection.DeleteOneAsync(deleteFilter);
-Console.WriteLine($"Deleted: {deleteResult.DeletedCount} bookmark(s)");
-Console.WriteLine();
-
-// Final count
-var finalCount = await collection.CountDocumentsAsync(_ => true);
-Console.WriteLine($"--- Final bookmark count: {finalCount} ---");
-
-// Optional: Clean up all inserted documents
-await collection.DeleteManyAsync(_ => true);
-Console.WriteLine("All bookmarks deleted.");
-
-// Document model
+// ============================================
+// Domain Model
+// ============================================
 record Bookmark
 {
     [BsonId]
@@ -153,4 +189,93 @@ record Bookmark
 
     [BsonElement("createdAt")]
     public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
+}
+
+// ============================================
+// Configuration
+// ============================================
+record CosmosConfig
+{
+    public string ConnectionString { get; private set; }
+    public string DatabaseName { get; private set; }
+    public string CollectionName { get; private set; }
+
+    public CosmosConfig(string connectionString, string databaseName, string collectionName)
+    {
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            throw new ArgumentException("Connection string cannot be empty.", nameof(connectionString));
+        }
+        if (string.IsNullOrWhiteSpace(databaseName))
+        {
+            throw new ArgumentException("Database name cannot be empty.", nameof(databaseName));
+        }
+        if (string.IsNullOrWhiteSpace(collectionName))
+        {
+            throw new ArgumentException("Collection name cannot be empty.", nameof(collectionName));
+        }
+
+        ConnectionString = connectionString;
+        DatabaseName = databaseName;
+        CollectionName = collectionName;
+    }
+}
+
+// ============================================
+// Repository Pattern
+// ============================================
+interface IBookmarkRepository
+{
+    Task InsertManyAsync(IEnumerable<Bookmark> bookmarks);
+    Task<List<Bookmark>> GetAllAsync();
+    Task<List<Bookmark>> GetByCategoryAsync(string category);
+    Task<List<Bookmark>> GetByTagAsync(string tag);
+    Task<Bookmark?> GetByTitleAsync(string title);
+    Task<Bookmark?> GetByIdAsync(string id);
+    Task UpdateAsync(Bookmark bookmark);
+    Task DeleteByIdAsync(string id);
+    Task DeleteAllAsync();
+    Task<long> CountAsync();
+}
+
+class BookmarkRepository : IBookmarkRepository
+{
+    private readonly IMongoCollection<Bookmark> _collection;
+
+    public BookmarkRepository(IMongoCollection<Bookmark> collection)
+    {
+        _collection = collection;
+    }
+
+    public Task InsertManyAsync(IEnumerable<Bookmark> bookmarks)
+        => _collection.InsertManyAsync(bookmarks);
+
+    public Task<List<Bookmark>> GetAllAsync()
+        => _collection.Find(_ => true).ToListAsync();
+
+    public Task<List<Bookmark>> GetByCategoryAsync(string category)
+        => _collection.Find(b => b.Category == category).ToListAsync();
+
+    public Task<List<Bookmark>> GetByTagAsync(string tag)
+        => _collection.Find(b => b.Tags.Contains(tag)).ToListAsync();
+
+    public Task<Bookmark?> GetByTitleAsync(string title)
+        => _collection.Find(b => b.Title == title).FirstOrDefaultAsync();
+
+    public Task<Bookmark?> GetByIdAsync(string id)
+        => _collection.Find(b => b.Id == id).FirstOrDefaultAsync();
+
+    public Task UpdateAsync(Bookmark bookmark)
+        => _collection.ReplaceOneAsync(
+            b => b.Id == bookmark.Id,
+            bookmark);
+
+    public Task DeleteByIdAsync(string id)
+        => _collection.DeleteOneAsync(b => b.Id == id);
+
+    public Task DeleteAllAsync()
+        => _collection.DeleteManyAsync(_ => true);
+
+    public Task<long> CountAsync()
+        => _collection.CountDocumentsAsync(_ => true);
 }
